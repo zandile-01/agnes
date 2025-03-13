@@ -1,0 +1,151 @@
+#Question 1
+
+# Load libraries
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(readr)
+library(shiny)
+
+# Load dataset
+file_path <- file.choose()
+dataset <- read_csv(file_path)
+
+# Select columns
+selected_columns <- c("Campus", "StudyField", "Branch", "Role", "EduLevel", "ProgLang", "Databases", "Platform", "WebFramework", "Industry", "AISearch", "AITool", "Employment")
+data <- dataset %>% select(all_of(selected_columns))
+
+# Handle missing values
+data <- data %>% drop_na(ProgLang, Databases, WebFramework, Employment) %>% mutate(across(where(is.character), ~replace_na(.x, "Unknown")))
+
+# Standardize categorical columns
+data$Campus <- str_replace_all(data$Campus, "(?i)Durban|Umhlanga", "Durban")
+data$Campus <- str_replace_all(data$Campus, "(?i)Joburg|Johannesburg", "Johannesburg")
+data <- data %>% mutate(across(where(is.character), str_to_title))
+
+# Subset data
+top_campuses <- data %>% count(Campus, sort = TRUE) %>% slice_max(n, n = 5) %>% pull(Campus)
+data <- data %>% filter(Campus %in% top_campuses)
+
+# Save cleaned dataset
+write_csv(data, "cleaned_graduate_survey.csv")
+
+# Print summary
+summary(data)
+
+# Create Shiny app
+ui <- fluidPage(
+  titlePanel("Download Cleaned Dataset"),
+  downloadButton("downloadData", "Download Cleaned File")
+)
+
+server <- function(input, output) {
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      "cleaned_graduate_survey.csv"
+    },
+    content = function(file) {
+      file.copy("cleaned_graduate_survey.csv", file)
+    }
+  )
+}
+
+shinyApp(ui, server)
+
+#Question 2
+
+#Load libraries
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(readr)
+library(shiny)
+library(ggplot2)
+library(forcats)
+library(reshape2)
+
+# Load dataset
+file_path <- file.choose()
+dataset <- read_csv(file_path)
+
+# Select columns
+selected_columns <- c("Campus", "StudyField", "Branch", "Role", "EduLevel", "ProgLang", "Databases", "Platform", "WebFramework", "Industry", "AISearch", "AITool", "Employment")
+data <- dataset %>% select(all_of(selected_columns))
+
+# Handle missing values
+data <- data %>% drop_na(ProgLang, Databases, WebFramework, Employment) %>% mutate(across(where(is.character), ~replace_na(.x, "Unknown")))
+
+# Standardize categorical columns
+data$Campus <- str_replace_all(data$Campus, "(?i)Durban|Umhlanga", "Durban")
+data$Campus <- str_replace_all(data$Campus, "(?i)Joburg|Johannesburg", "Johannesburg")
+data <- data %>% mutate(across(where(is.character), str_to_title))
+
+# Subset data
+top_campuses <- data %>% count(Campus, sort = TRUE) %>% slice_max(n, n = 5) %>% pull(Campus)
+data <- data %>% filter(Campus %in% top_campuses)
+
+# Save cleaned dataset
+write_csv(data, "cleaned_graduate_survey.csv")
+
+# Print summary
+summary(data)
+
+# Define function to count tools
+count_tools <- function(column) {
+  data %>% filter(!is.na(.data[[column]])) %>% separate_rows(.data[[column]], sep = ";") %>% count(.data[[column]], sort = TRUE) %>% rename(Tool = .data[[column]], Count = n)
+}
+
+# Visualize top tools used by graduates
+tool_categories <- c("ProgLang", "Databases", "Platform", "WebFramework", "AISearch", "AITool")
+for (category in tool_categories) {
+  tool_data <- count_tools(category)
+  print(ggplot(tool_data, aes(x = fct_reorder(Tool, Count), y = Count)) + geom_col(fill = "steelblue") + coord_flip() + labs(title = paste("Top", category, "Used by Graduates"), x = category, y = "Count"))
+}
+
+# Visualize most popular industries per study field
+data %>% filter(!is.na(Industry)) %>% separate_rows(Industry, sep = ";") %>% count(StudyField, Industry, sort = TRUE) %>% ggplot(aes(x = fct_reorder(Industry, n), y = n, fill = StudyField)) + geom_col() + coord_flip() + labs(title = "Most Popular Industries by Study Field", x = "Industry", y = "Count")
+
+# Visualize top job roles per study field
+data %>% count(StudyField, Role, sort = TRUE) %>% ggplot(aes(x = fct_reorder(Role, n), y = n, fill = StudyField)) + geom_col() + coord_flip() + labs(title = "Top Job Roles by Study”
+
+#Question 3
+
+# Load libraries
+library(shiny)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(readr)
+
+# Load dataset
+data <- read_csv("cleaned_graduate_survey.csv")
+
+# Define UI layout
+ui <- fluidPage(
+  titlePanel("Eduvos IT Graduate Survey Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("study_field", "Select Study Field", choices = unique(data$StudyField), selected = "IT"),
+      selectInput("category", "Select Category", choices = c("ProgLang", "Databases", "Platform", "WebFramework", "AISearch", "AITool"))
+    ),
+    mainPanel(
+      plotOutput("topToolsPlot")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  count_tools <- function(column) {
+    data %>% filter(!is.na(.data[[column]])) %>% separate_rows(.data[[column]], sep = ";") %>% count(.data[[column]], sort = TRUE) %>% rename(Tool = .data[[column]], Count = n)
+  }
+  
+  output$topToolsPlot <- renderPlot({
+    tool_data <- count_tools(input$category)
+    ggplot(tool_data, aes(x = fct_reorder(Tool, Count), y = Count)) + geom_col(fill = "pink") + coord_flip() + labs(title = paste("Top", input$category, "Used by Graduates"), x = input$category, y = "Count")
+  })
+}
+
+# Run the app
+shinyApp(ui = ui, server = server)
